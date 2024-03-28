@@ -88,39 +88,103 @@ func (game *Game) dealStartingCards() {
 	game.dealerCards = append(game.dealerCards, dCards...)
 }
 
-func (game *Game) play(bet float64) float64 {
-	var playerValue int
-	var playerCardsStr string
-	// var dealerValue int
+func (game *Game) calculateDealtCards(cards []Card) int {
+	var sum int
+	for _, card := range cards {
+		if card.value >= 10 {
+			sum += 10
+			continue
+		}
 
+		if card.value == 1 && sum+11 <= 21 {
+			sum += 11
+			continue
+		}
+
+		sum += card.value
+	}
+
+	return sum
+}
+
+func (game *Game) generateDealtString(cards []Card) string {
+	var dealtStr string
+	dealtSum := game.calculateDealtCards(cards)
+
+	for _, card := range cards {
+		dealtStr += card.getString() + " "
+	}
+	dealtStr += "= " + strconv.Itoa(dealtSum)
+
+	return dealtStr
+}
+
+func (game *Game) play(bet float64) float64 {
 	game.deck.create()
 	game.deck.shuffle()
 	game.dealStartingCards()
 
 	fmt.Printf("\n----------------------------------\n\n")
+	fmt.Printf("Player has been dealt: %s\n\n", game.generateDealtString(game.playerCards))
+	fmt.Printf("Dealer shows: %s\n\n", game.generateDealtString(game.dealerCards))
 
-	playersTurn := true
-	for playersTurn {
-		for _, card := range game.playerCards {
-			playerValue += card.value
-			playerCardsStr = card.getString()
-		}
-		fmt.Printf("Player has been dealt: %s\n", playerCardsStr)
-		playersTurn = game.playerTurn()
-	}
+	isDealersTurn := game.playerTurn()
+	playerScore := game.calculateDealtCards(game.playerCards)
 
 	fmt.Printf("\n----------------------------------\n\n")
+	if !isDealersTurn && playerScore > 21 {
+		return bet * -1
+	}
+	if !isDealersTurn && playerScore == 21 {
+		return bet * 1.5
+	}
+
+	game.dealerTurn()
+	dealerScore := game.calculateDealtCards(game.dealerCards)
+
+	if dealerScore == playerScore {
+		bet = 0
+	} else if dealerScore > playerScore {
+		bet *= -1
+	}
 
 	return bet
 }
 
 func (game *Game) playerTurn() bool {
-	return false
+	playerHit := "h"
+	fmt.Printf("Would you like to hit or stay (H/S)? ")
+	playerHit = enterString()
+
+	for playerHit == "h" || playerHit == "H" {
+		newCard := game.deck.deal(1)
+		game.playerCards = append(game.playerCards, newCard...)
+
+		fmt.Printf("You are dealt: %s\n", game.generateDealtString(newCard))
+
+		playerValue := game.calculateDealtCards(game.playerCards)
+		if playerValue > 21 {
+			fmt.Printf("Player bust: %s\n\n", game.generateDealtString(game.playerCards))
+			return false
+		}
+
+		if playerValue == 21 {
+			fmt.Printf("Player has BlackJack: %s\n\n", game.generateDealtString(game.playerCards))
+			return false
+		}
+
+		fmt.Printf("Player now has: %s\n\n", game.generateDealtString(game.playerCards))
+
+		fmt.Printf("Would you like to hit or stay (H/Y)? ")
+		playerHit = enterString()
+	}
+
+	return true
 }
 
-// func (game *Game) dealerTurn() {
+func (game *Game) dealerTurn() {
 
-// }
+}
 
 func enterString() string {
 	reader := bufio.NewReader(os.Stdin)
