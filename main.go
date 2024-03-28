@@ -141,6 +141,10 @@ func (game *Game) play(bet float64) float64 {
 
 	game.dealerTurn()
 	dealerScore := game.calculateDealtCards(game.dealerCards)
+	if dealerScore > 21 {
+		fmt.Printf("Dealer bust with: %s", game.generateDealtString(game.dealerCards))
+		return 0
+	}
 
 	if dealerScore == playerScore {
 		bet = 0
@@ -175,7 +179,7 @@ func (game *Game) playerTurn() bool {
 
 		fmt.Printf("Player now has: %s\n\n", game.generateDealtString(game.playerCards))
 
-		fmt.Printf("Would you like to hit or stay (H/Y)? ")
+		fmt.Printf("Would you like to hit or stay (H/S)? ")
 		playerHit = enterString()
 	}
 
@@ -183,7 +187,14 @@ func (game *Game) playerTurn() bool {
 }
 
 func (game *Game) dealerTurn() {
+	dealerScore := game.calculateDealtCards(game.dealerCards)
+	for dealerScore < 17 {
+		newCard := game.deck.deal(1)
+		game.dealerCards = append(game.dealerCards, newCard...)
+		dealerScore = game.calculateDealtCards(game.dealerCards)
+	}
 
+	fmt.Printf("Dealer has: %s\n\n", game.generateDealtString(game.dealerCards))
 }
 
 func enterString() string {
