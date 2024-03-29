@@ -50,15 +50,14 @@ type Deck struct {
 }
 
 func (d *Deck) deal(num uint) []Card {
-	var card []Card
+	var cards []Card
 
 	for i := uint(0); i < num; i++ {
-		len := len(d.cards)
-		card = append(card, d.cards[len-1])
-		d.cards = d.cards[:len-1]
+		cards = append(cards, d.cards[0])
+		d.cards = d.cards[1:]
 	}
 
-	return card
+	return cards
 }
 
 func (d *Deck) create() {
@@ -86,25 +85,43 @@ func (game *Game) dealStartingCards() {
 
 	game.playerCards = append(game.playerCards, pCards...)
 	game.dealerCards = append(game.dealerCards, dCards...)
+
+	fmt.Printf("Player has been dealt: %s\n\n", game.generateDealtString(game.playerCards))
+
+	dealerScore := game.calculateDealtCards(game.dealerCards)
+	if dealerScore == 21 {
+		fmt.Printf("Dealer shows: %s\n\n", game.generateDealtString(game.dealerCards))
+	} else {
+		fmt.Printf("Dealer shows: %s\n\n", game.generateDealtString(game.dealerCards[:1]))
+	}
 }
 
 func (game *Game) calculateDealtCards(cards []Card) int {
-	var sum int
+	sum := 0
+	aces := 0
 	for _, card := range cards {
 		if card.value >= 10 {
 			sum += 10
 			continue
 		}
 
-		if card.value == 1 && sum+11 <= 21 {
-			sum += 11
+		if card.value == 1 {
+			aces++
 			continue
 		}
 
 		sum += card.value
 	}
 
-	return sum
+	if aces == 0 {
+		return sum
+	}
+
+	if sum < (11 + aces - 1) {
+		return sum + 11 + aces - 1
+	} else {
+		return sum + aces
+	}
 }
 
 func (game *Game) generateDealtString(cards []Card) string {
@@ -114,48 +131,68 @@ func (game *Game) generateDealtString(cards []Card) string {
 	for _, card := range cards {
 		dealtStr += card.getString() + " "
 	}
-	dealtStr += "= " + strconv.Itoa(dealtSum)
+
+	if len(cards) != 1 {
+		dealtStr += "= " + strconv.Itoa(dealtSum)
+	}
 
 	return dealtStr
 }
 
 func (game *Game) play(bet float64) float64 {
+	defer fmt.Printf("----------------------------------\n\n")
+	fmt.Printf("\n----------------------------------\n\n")
+
 	game.deck.create()
 	game.deck.shuffle()
 	game.dealStartingCards()
 
-	fmt.Printf("\n----------------------------------\n\n")
-	fmt.Printf("Player has been dealt: %s\n\n", game.generateDealtString(game.playerCards))
-	fmt.Printf("Dealer shows: %s\n\n", game.generateDealtString(game.dealerCards))
+	playerBlackjack := game.calculateDealtCards(game.playerCards) == 21
+	dealerBlackjack := game.calculateDealtCards(game.dealerCards) == 21
 
-	isDealersTurn := game.playerTurn()
-	playerScore := game.calculateDealtCards(game.playerCards)
-
-	fmt.Printf("\n----------------------------------\n\n")
-	if !isDealersTurn && playerScore > 21 {
-		return bet * -1
+	if playerBlackjack && dealerBlackjack {
+		fmt.Printf("Player and Dealer both have Blackjack.\n\n")
+		return 0
 	}
-	if !isDealersTurn && playerScore == 21 {
+
+	if playerBlackjack && !dealerBlackjack {
+		fmt.Printf("Blackjack!\n\n")
 		return bet * 1.5
 	}
+
+	if !playerBlackjack && dealerBlackjack {
+		fmt.Printf("Dealer has Blackjack: %s\n\n", game.generateDealtString(game.dealerCards))
+		return -bet
+	}
+
+	game.playerTurn()
+	playerScore := game.calculateDealtCards(game.playerCards)
+	if playerScore > 21 {
+		fmt.Printf("Player bust: %s\n\n", game.generateDealtString(game.playerCards))
+		return -bet
+	}
+	fmt.Printf("\n----------------------------------\n\n")
 
 	game.dealerTurn()
 	dealerScore := game.calculateDealtCards(game.dealerCards)
 	if dealerScore > 21 {
-		fmt.Printf("Dealer bust with: %s", game.generateDealtString(game.dealerCards))
-		return 0
+		fmt.Printf("Dealer bust!\n\n")
+		return bet
 	}
 
 	if dealerScore == playerScore {
-		bet = 0
+		fmt.Println("Dealer and player tie")
+		return 0
 	} else if dealerScore > playerScore {
-		bet *= -1
+		fmt.Println("Dealer wins")
+		return -bet
 	}
 
+	fmt.Println("Player wins!")
 	return bet
 }
 
-func (game *Game) playerTurn() bool {
+func (game *Game) playerTurn() {
 	playerHit := "h"
 	fmt.Printf("Would you like to hit or stay (H/S)? ")
 	playerHit = enterString()
@@ -164,17 +201,16 @@ func (game *Game) playerTurn() bool {
 		newCard := game.deck.deal(1)
 		game.playerCards = append(game.playerCards, newCard...)
 
-		fmt.Printf("You are dealt: %s\n", game.generateDealtString(newCard))
+		fmt.Printf("\nYou are dealt: %s\n", game.generateDealtString(newCard))
 
 		playerValue := game.calculateDealtCards(game.playerCards)
 		if playerValue > 21 {
-			fmt.Printf("Player bust: %s\n\n", game.generateDealtString(game.playerCards))
-			return false
+			return
 		}
 
 		if playerValue == 21 {
-			fmt.Printf("Player has BlackJack: %s\n\n", game.generateDealtString(game.playerCards))
-			return false
+			fmt.Printf("Player has 21: %s\n\n", game.generateDealtString(game.playerCards))
+			return
 		}
 
 		fmt.Printf("Player now has: %s\n\n", game.generateDealtString(game.playerCards))
@@ -182,8 +218,6 @@ func (game *Game) playerTurn() bool {
 		fmt.Printf("Would you like to hit or stay (H/S)? ")
 		playerHit = enterString()
 	}
-
-	return true
 }
 
 func (game *Game) dealerTurn() {
